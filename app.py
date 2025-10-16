@@ -243,7 +243,7 @@ def main():
     # 데이터 쓰기 시작할 행 찾기
     start_row = ws.max_row + 1
     # 서식을 복사할 템플릿 행 (마지막 데이터 행)
-    style_template_row = ws.max_row if ws.max_row > 2 else 2
+    style_template_row = ws.max_row if ws.max_row > 1 else 1
 
     # 최종 데이터프레임의 컬럼 순서를 템플릿 헤더에 맞게 재정렬
     # 템플릿에 없는 컬럼은 누락, 최종 데이터에 없는 컬럼은 빈 값으로 처리
