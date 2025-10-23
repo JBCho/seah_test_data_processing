@@ -120,6 +120,10 @@ def process_component_data(df):
         # info_cols에 없는 컬럼이 있을 수 있으므로 .get() 사용
         info_data = {col: last_two.iloc[0].get(col) for col in info_cols}
 
+        # [신규] '시편배치' 값을 8자리 키 값으로 덮어쓰기 (v2.2)
+        if '시편배치' in info_data:
+            info_data['시편배치'] = last_two.iloc[0].get('시편배치_키')
+
         # 2. 성분 데이터 추출 및 컬럼명 변경
         row_data = {}
         for i, (idx, row) in enumerate(last_two.iterrows()):
@@ -389,7 +393,7 @@ st.set_page_config(page_title="시험 결과 통합 자동화 툴", layout="wide
 
 st.title("🔬 시험 결과 통합 자동화 툴")
 st.write("아래 4개의 엑셀 파일을 업로드한 후 버튼을 누르면, 규칙에 따라 데이터를 통합하고 서식을 유지한 최종 결과 파일을 다운로드할 수 있습니다.")
-st.write("**[v2.1]** '시편배치'(앞 8자리), '외경', '두께', 'Heat No.'를 기준으로 데이터를 통합합니다.")
+st.write("**[v2.2]** '시편배치'(앞 8자리), '외경', '두께', 'Heat No.'를 기준으로 데이터를 통합하고, 결과 파일에도 8자리 '시편배치'를 표시합니다.")
 
 
 # --- UI 부분 ---
@@ -480,4 +484,5 @@ if __name__ == "__main__":
     except RuntimeError:
         # Streamlit이 실행 중이 아니면 main() 함수 호출
         main()
+
 
