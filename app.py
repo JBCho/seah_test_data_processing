@@ -15,6 +15,32 @@ FILENAME_CONFIG = {
     "output": "통합_시험_결과_완성본.xlsx"
 }
 
+# [수정] 템플릿의 헤더가 시작되는 행 번호
+TEMPLATE_HEADER_ROW = 3
+
+# [신규] 템플릿의 열 순서에 맞춘 최종 DataFrame의 열 목록
+# 이 목록은 템플릿의 헤더 순서와 정확히 일치해야 합니다.
+TEMPLATE_ORDERED_COLS = [
+    '시편배치', '생산오더', '제품배치', '제품기호', '외경', '두께', 'Heat No.', '원재료기호', '원재료업체',
+    # 성분 1 (19개)
+    'C_1', 'Si_1', 'Mn_1', 'P_1', 'S_1', 'Cu_1', 'Ni_1', 'Cr_1', 'Mo_1', 'V_1', 'Nb_1', 'Ti_1', 'Alsol_1', 'Aloxy_1', 'Al_1', 'Ca_1', 'B_1', 'PCM_1', 'CEQ_1',
+    # 성분 2 (19개)
+    'C_2', 'Si_2', 'Mn_2', 'P_2', 'S_2', 'Cu_2', 'Ni_2', 'Cr_2', 'Mo_2', 'V_2', 'Nb_2', 'Ti_2', 'Alsol_2', 'Aloxy_2', 'Al_2', 'Ca_2', 'B_2', 'PCM_2', 'CEQ_2',
+    # 인장 L (4개)
+    'Stripe 모재 L방향_YS2 STRESS', 'Stripe 모재 L방향_TS STRESS', 'Stripe 모재 L방향_연신율 EL(%)', 'Stripe 모재 L방향_YR(%)',
+    # 인장 T (4개)
+    'Stripe 모재 T방향_YS2 STRESS', 'Stripe 모재 T방향_TS STRESS', 'Stripe 모재 T방향_연신율 EL(%)', 'Stripe 모재 T방향_YR(%)',
+    # 인장 용접 (4개)
+    'Stripe 용접_YS2 STRESS', 'Stripe 용접_TS STRESS', 'Stripe 용접_연신율 EL(%)', 'Stripe 용접_YR(%)',
+    # 충격 Base (5개)
+    'Base (Transeverse)_온도', 'Base (Transeverse)_1', 'Base (Transeverse)_2', 'Base (Transeverse)_3', 'Base (Transeverse)_Avg',
+    # 충격 Weld (5개)
+    'Weld Line_온도', 'Weld Line_1', 'Weld Line_2', 'Weld Line_3', 'Weld Line_Avg',
+    # 충격 HAZ (5개)
+    'HAZ_온도', 'HAZ_1', 'HAZ_2', 'HAZ_3', 'HAZ_Avg'
+]
+
+
 # --- 데이터 처리 함수들 ---
 
 def get_data(filename, sheet_name=0):
@@ -22,28 +48,22 @@ def get_data(filename, sheet_name=0):
     try:
         return pd.read_excel(filename, sheet_name=sheet_name)
     except FileNotFoundError:
-        print(f"오류: '{filename}' 파일을 찾을 수 없습니다. 스크립트와 같은 폴더에 파일이 있는지 확인하세요.")
+        st.error(f"오류: '{filename}' 파일을 찾을 수 없습니다. 스크립트와 같은 폴더에 파일이 있는지 확인하세요.")
         return None
     except Exception as e:
-        print(f"오류: '{filename}' 파일을 읽는 중 문제가 발생했습니다: {e}")
+        st.error(f"오류: '{filename}' 파일을 읽는 중 문제가 발생했습니다: {e}")
         return None
     
 def get_impact_data_with_multiheader(filename):
     """[수정] 2줄 헤더를 가진 충격 시험 엑셀 파일을 읽고 컬럼명을 정리하는 함수"""
     try:
-        # header=[0, 1] 옵션으로 2줄 헤더를 정확히 읽음
         df = pd.read_excel(filename, header=[0, 1])
         
-        # 다중 레벨 컬럼명을 다루기 쉽게 단일 이름으로 변환
-        # 예: ('에너지 (J) SIZE 10 보정', '1') -> '에너지 (J) SIZE 10 보정_1'
         new_columns = []
         for col in df.columns:
-            # 첫 번째 레벨 이름에서 'Unnamed:' 부분 제거
             level1 = str(col[0]) if 'Unnamed:' not in str(col[0]) else ''
-            # 두 번째 레벨 이름
             level2 = str(col[1]) if 'Unnamed:' not in str(col[1]) else ''
             
-            # 두 레벨을 조합하여 최종 컬럼명 생성
             if level1 and level2:
                 new_columns.append(f"{level1}_{level2}")
             elif level1:
@@ -52,34 +72,49 @@ def get_impact_data_with_multiheader(filename):
                 new_columns.append(level2)
         
         df.columns = new_columns
+        
+        # [수정] 원본 컬럼명(다중 헤더)도 유지하여 키 컬럼 접근에 사용
+        # 예: ('시편배치', '시편배치') -> '시편배치'
+        # df.columns에서 '시편배치', '외경', '두께', 'Heat No.'를 포함하는 컬럼을 찾아 단일 이름으로 매핑
+        # 이 부분은 get_impact_data_with_multiheader가 단일 이름으로 잘 변환한다고 가정하고,
+        # process_impact_data에서 처리하도록 수정합니다.
+        
         return df
 
     except FileNotFoundError:
-        print(f"오류: '{filename}' 파일을 찾을 수 없습니다.")
+        st.error(f"오류: '{filename}' 파일을 찾을 수 없습니다.")
         return None
     except Exception as e:
-        print(f"오류: '{filename}' 파일을 읽는 중 문제가 발생했습니다: {e}")
+        st.error(f"오류: '{filename}' 파일을 읽는 중 문제가 발생했습니다: {e}")
         return None
 
 def process_component_data(df):
-    """규칙 2: 성분 시험 데이터 처리"""
+    """[수정] 규칙 2: 성분 시험 데이터 처리 (복합 키 사용)"""
     if df is None: return pd.DataFrame()
     
-    df['배치번호_키'] = df['시편배치'].str[:8]
+    # [수정] 복합 키로 사용할 컬럼 정의
+    key_cols = ['시편배치', '외경', '두께', 'Heat No.']
     
+    # [수정] 키 컬럼이 모두 존재하는지 확인
+    if not all(col in df.columns for col in key_cols):
+        st.error(f"성분 시험 파일에 필수 키 컬럼({key_cols}) 중 일부가 없습니다.")
+        return pd.DataFrame()
+
     # 필요한 성분 컬럼 목록 (템플릿 기준)
     comp_cols = ['C', 'Si', 'Mn', 'P', 'S', 'Cu', 'Ni', 'Cr', 'Mo', 'V', 'Nb', 'Ti', 'Alsol', 'Aloxy', 'Al', 'Ca', 'B', 'PCM', 'CEQ']
-    # 기본 정보 컬럼 (한 번만 가져옴)
-    info_cols = ['생산오더', '제품배치', '제품기호', '외경', '두께', 'Heat No.', '원재료기호', '원재료업체']
+    
+    # [수정] 기본 정보 컬럼 (키 컬럼 제외)
+    info_cols = ['생산오더', '제품배치', '제품기호', '원재료기호', '원재료업체']
     
     processed_data = {}
 
-    for key, group in df.groupby('배치번호_키'):
-        # 마지막 2개 행 선택
+    # [수정] 복합 키로 그룹화
+    for key, group in df.groupby(key_cols):
         last_two = group.tail(2)
         
         # 1. 기본 정보 추출 (첫 번째 행에서만)
-        info_data = last_two.iloc[0][info_cols].to_dict()
+        # info_cols에 없는 컬럼이 있을 수 있으므로 .get() 사용
+        info_data = {col: last_two.iloc[0].get(col) for col in info_cols}
 
         # 2. 성분 데이터 추출 및 컬럼명 변경
         row_data = {}
@@ -92,14 +127,22 @@ def process_component_data(df):
         processed_data[key] = {**info_data, **row_data}
         
     result_df = pd.DataFrame.from_dict(processed_data, orient='index')
+    # [수정] 인덱스 이름 설정
+    result_df.index.names = key_cols
     return result_df
 
 
 def process_tensile_data(df):
-    """규칙 3: 인장 시험 데이터 처리"""
+    """[수정] 규칙 3: 인장 시험 데이터 처리 (복합 키 사용)"""
     if df is None: return pd.DataFrame()
 
-    df['배치번호_키'] = df['시편배치'].str[:8]
+    # [수정] 복합 키로 사용할 컬럼 정의
+    key_cols = ['시편배치', '외경', '두께', 'Heat No.']
+
+    # [수정] 키 컬럼이 모두 존재하는지 확인
+    if not all(col in df.columns for col in key_cols):
+        st.error(f"인장 시험 파일에 필수 키 컬럼({key_cols}) 중 일부가 없습니다.")
+        return pd.DataFrame()
     
     # 처리할 방향과 결과 컬럼 정의
     directions = ["Stripe 모재 L방향", "Stripe 모재 T방향", "Stripe 용접"]
@@ -107,45 +150,66 @@ def process_tensile_data(df):
     
     all_data = {}
 
-    for key, group in df.groupby('배치번호_키'):
+    # [수정] 복합 키로 그룹화
+    for key, group in df.groupby(key_cols):
         key_data = {}
         for direction in directions:
-            # 방향별 데이터 필터링 및 마지막 1개 선택
             dir_group = group[group['시편 위치/방향'] == direction]
             if not dir_group.empty:
                 last_test = dir_group.iloc[-1]
                 for col in result_cols:
-                    key_data[f"{direction}_{col}"] = last_test[col]
+                    # [수정] 컬럼이 없을 경우 None 반환
+                    key_data[f"{direction}_{col}"] = last_test.get(col, None)
             else:
-                # 데이터가 없으면 0으로 채움
                 for col in result_cols:
                     key_data[f"{direction}_{col}"] = None
         all_data[key] = key_data
         
-    return pd.DataFrame.from_dict(all_data, orient='index')
+    result_df = pd.DataFrame.from_dict(all_data, orient='index')
+    # [수정] 인덱스 이름 설정
+    result_df.index.names = key_cols
+    return result_df
 
 
 def process_impact_data(df):
-    """[수정] 규칙 4: 충격 시험 데이터 처리 (시험온도 최빈값 적용)"""
+    """[수정] 규칙 4: 충격 시험 데이터 처리 (복합 키 사용)"""
     if df is None: return pd.DataFrame()
 
-    # 컬럼명에 접두사가 붙어있을 수 있으므로, 부분 문자열로 컬럼을 찾음
-    specimen_col = next((col for col in df.columns if '시편배치' in col), None)
-    notch_col = next((col for col in df.columns if 'Notch 위치' in col), None)
+    # [수정] 동적으로 컬럼명 찾기 (정리된 컬럼명 기준)
+    # get_impact_data_with_multiheader 함수가 '시편배치_시편배치' -> '시편배치' 등으로
+    # 잘 정리해준다고 가정합니다.
+    def find_col(df, keyword):
+        # 먼저 정확히 일치하는 이름 찾기
+        if keyword in df.columns:
+            return keyword
+        # 없다면 키워드를 포함하는 컬럼 찾기
+        for col in df.columns:
+            if keyword in col:
+                return col
+        return None
+
+    specimen_col = find_col(df, '시편배치')
+    od_col = find_col(df, '외경')
+    thick_col = find_col(df, '두께')
+    heat_col = find_col(df, 'Heat No.')
+    notch_col = find_col(df, 'Notch 위치')
     
+    # [수정] 복합 키 컬럼 리스트
+    key_cols = [specimen_col, od_col, thick_col, heat_col]
+    
+    if not all(key_cols + [notch_col]):
+        st.error(f"충격 시험 파일에서 필수 키/Notch 컬럼을 찾을 수 없습니다. (찾은 컬럼: {key_cols}, {notch_col})")
+        return pd.DataFrame()
+
     # 컬럼 접두사 정의
     temp_col_prefix = '온도(˚C)'
     energy_col_prefix = '에너지(J) SIZE 10보정'
 
-    if not all([specimen_col, notch_col]):
-        print("오류: 충격 시험 파일에서 '시편배치', 'Notch 위치' 컬럼을 찾을 수 없습니다.")
-        return pd.DataFrame()
-
-    df['배치번호_키'] = df[specimen_col].str[:8]
     locations = ["Base (Transeverse)", "Weld Line", "HAZ"]
     all_data = {}
     
-    for key, group in df.groupby('배치번호_키'):
+    # [수정] 복합 키로 그룹화
+    for key, group in df.groupby(key_cols):
         key_data = {}
         for loc in locations:
             loc_group = group[group[notch_col] == loc]
@@ -153,31 +217,24 @@ def process_impact_data(df):
             if not loc_group.empty:
                 last_test_row = loc_group.iloc[-1]
                 
-                # --- [수정된 온도 처리 로직] ---
-                # '온도(˚C)' 아래의 1~6번 값을 리스트로 수집
                 temp_values = []
-                for i in range(1, 7): # 1부터 6까지 확인
+                for i in range(1, 7):
                     col_name = f'{temp_col_prefix}_{i}'
                     if col_name in last_test_row and pd.notna(last_test_row[col_name]):
                         temp_values.append(last_test_row[col_name])
                 
-                # 최빈값 계산
                 test_temperature = None
                 if temp_values:
-                    # mode() 함수는 최빈값을 Series 형태로 반환하므로, 첫 번째 값을 선택
                     mode_series = pd.Series(temp_values).mode()
                     if not mode_series.empty:
                         test_temperature = mode_series.iloc[0]
-                # --- [수정된 온도 처리 로직 끝] ---
 
-                # 에너지 값 추출
                 val1 = last_test_row.get(f'{energy_col_prefix}_1', None)
                 val2 = last_test_row.get(f'{energy_col_prefix}_2', None)
                 val3 = last_test_row.get(f'{energy_col_prefix}_3', None)
                 
                 valid_values = [v for v in [val1, val2, val3] if pd.notna(v) and isinstance(v, (int, float))]
                 
-                # 계산된 최빈값을 '온도'로 할당
                 key_data[f'{loc}_온도'] = test_temperature
                 key_data[f'{loc}_1'] = val1
                 key_data[f'{loc}_2'] = val2
@@ -188,19 +245,83 @@ def process_impact_data(df):
                     key_data[f'{loc}_{col}'] = None
         all_data[key] = key_data
     
-    return pd.DataFrame.from_dict(all_data, orient='index')
+    result_df = pd.DataFrame.from_dict(all_data, orient='index')
+    # [수정] 인덱스 이름 설정
+    result_df.index.names = ['시편배치', '외경', '두께', 'Heat No.']
+    return result_df
+
+
+def reorder_final_dataframe(final_df, template_cols):
+    """
+    [신규] 병합된 DataFrame을 템플릿 순서에 맞게 재정렬하고
+    누락된 컬럼은 None으로 채우는 함수
+    """
+    final_df_ordered = pd.DataFrame()
+    for col in template_cols:
+        if col in final_df.columns:
+            final_df_ordered[col] = final_df[col]
+        else:
+            # 템플릿에 필요한 컬럼이 병합된 데이터에 없으면 빈 컬럼 추가
+            final_df_ordered[col] = None 
+    return final_df_ordered
+
+
+def write_data_to_excel(wb, final_df_ordered):
+    """
+    [신규] 준비된 DataFrame을 템플릿 엑셀 워크북에
+    서식을 복사하며 쓰는 함수
+    """
+    try:
+        ws = wb.active
+    except Exception as e:
+        st.error(f"엑셀 워크북에서 활성 시트를 찾는 중 오류 발생: {e}")
+        return None
+
+    # 데이터 쓰기 시작할 행 (기존 데이터 다음 행)
+    start_row = ws.max_row + 1
+    # 서식을 복사할 템플릿 행 (기존 데이터의 마지막 행)
+    style_template_row = ws.max_row if ws.max_row >= TEMPLATE_HEADER_ROW else TEMPLATE_HEADER_ROW
+    
+    # [수정] 템플릿 헤더의 총 컬럼 수 (서식 복사 기준)
+    # TEMPLATE_ORDERED_COLS 리스트의 길이를 사용
+    total_template_cols = len(TEMPLATE_ORDERED_COLS)
+
+    for index, row_data in final_df_ordered.iterrows():
+        current_row = start_row + index
+        
+        # [수정] 순서가 보장된 final_df_ordered의 값을 순서대로 입력
+        for col_idx, value in enumerate(row_data.values, 1):
+            if pd.isna(value):
+                value = None
+            ws.cell(row=current_row, column=col_idx, value=value)
+
+        # 서식 복사
+        for col_num in range(1, total_template_cols + 1):
+            template_cell = ws.cell(row=style_template_row, column=col_num)
+            if not template_cell:
+                continue
+                
+            new_cell = ws.cell(row=current_row, column=col_num)
+            
+            if template_cell.has_style:
+                new_cell.font = copy(template_cell.font)
+                new_cell.border = copy(template_cell.border)
+                new_cell.fill = copy(template_cell.fill)
+                new_cell.number_format = copy(template_cell.number_format)
+                new_cell.protection = copy(template_cell.protection)
+                new_cell.alignment = copy(template_cell.alignment)
+    
+    return wb
 
 
 def main():
-    """메인 실행 함수"""
+    """메인 실행 함수 (로컬 실행용)"""
     print("--- 데이터 통합 작업을 시작합니다 ---")
 
-    # 각 데이터 파일 로드 및 전처리
     df_comp_raw = get_data(FILENAME_CONFIG['component'])
     df_tens_raw = get_data(FILENAME_CONFIG['tensile'])
     df_impa_raw = get_impact_data_with_multiheader(FILENAME_CONFIG['impact'])
 
-    # 하나라도 파일 로드에 실패하면 중단
     if any(df is None for df in [df_comp_raw, df_tens_raw, df_impa_raw]):
         print("필수 데이터 파일이 없어 작업을 중단합니다.")
         return
@@ -211,89 +332,32 @@ def main():
     processed_impa = process_impact_data(df_impa_raw)
 
     print("2/4: 처리된 데이터 병합 중...")
-    # outer join을 통해 모든 키를 포함하도록 병합
     final_df = processed_comp.join(processed_tens, how='outer')
     final_df = final_df.join(processed_impa, how='outer')
 
-    print(final_df.columns)
-    
-    # NaN 값을 0으로 채우기
-    # final_df.fillna(0, inplace=True)
-    
-    # 인덱스(배치번호_키)를 다시 컬럼으로 변환
+    # [수정] 인덱스(복합 키)를 컬럼으로 변환
     final_df.reset_index(inplace=True)
-    final_df.rename(columns={'index': '시편배치'}, inplace=True)
+    # [삭제] 'index' 컬럼 이름 변경 로직 (reset_index가 자동으로 인덱스 이름 사용)
 
     print("3/4: 엑셀 템플릿 파일에 데이터 쓰는 중...")
     try:
         wb = openpyxl.load_workbook(FILENAME_CONFIG['template'])
-        ws = wb.active
     except FileNotFoundError:
         print(f"오류: 템플릿 파일 '{FILENAME_CONFIG['template']}'을 찾을 수 없습니다.")
         return
-
-    # 템플릿의 헤더 순서 가져오기 (데이터 매핑 기준)
-    # 템플릿의 데이터가 4행부터 시작하고, 헤더가 3행에 있다고 가정합니다.
-    try:
-        template_headers = [cell.value for cell in ws[2]]
-    except IndexError:
-        print("오류: 템플릿 파일의 3번째 행에 헤더가 존재하지 않습니다.")
+    except Exception as e:
+        print(f"템플릿 파일 로드 중 오류: {e}")
         return
 
-    # 데이터 쓰기 시작할 행 찾기
-    start_row = ws.max_row + 1
-    # 서식을 복사할 템플릿 행 (마지막 데이터 행)
-    style_template_row = ws.max_row if ws.max_row > 1 else 1
+    # [신규] DataFrame을 템플릿 순서로 재정렬
+    final_df_ordered = reorder_final_dataframe(final_df, TEMPLATE_ORDERED_COLS)
 
-    # 최종 데이터프레임의 컬럼 순서를 템플릿 헤더에 맞게 재정렬
-    # 템플릿에 없는 컬럼은 누락, 최종 데이터에 없는 컬럼은 빈 값으로 처리
-    column_map = {
-        '시편배치':'시편배치', '생산오더':'생산오더', '제품배치':'제품배치', '제품기호':'제품기호', '외경':'외경', 
-        '두께':'두께', 'Heat No.':'Heat No.', '원재료기호':'원재료기호', '원재료업체':'원재료업체',
-        'C_1':'C', 'Si_1':'Si', 'Mn_1':'Mn', 'P_1':'P', 'S_1':'S', 'Cu_1':'Cu', 'Ni_1':'Ni', 'Cr_1':'Cr', 
-        'Mo_1':'Mo', 'V_1':'V', 'Nb_1':'Nb', 'Ti_1':'Ti', 'Alsol_1':'Alsol', 'Aloxy_1':'Aloxy', 'Al_1':'Al', 
-        'Ca_1':'Ca', 'B_1':'B', 'PCM_1':'PCM', 'CEQ_1':'CEQ',
-        'C_2':'C', 'Si_2':'Si', 'Mn_2':'Mn', 'P_2':'P', 'S_2':'S', 'Cu_2':'Cu', 'Ni_2':'Ni', 'Cr_2':'Cr', 
-        'Mo_2':'Mo', 'V_2':'V', 'Nb_2':'Nb', 'Ti_2':'Ti', 'Alsol_2':'Alsol', 'Aloxy_2':'Aloxy', 'Al_2':'Al', 
-        'Ca_2':'Ca', 'B_2':'B', 'PCM_2':'PCM', 'CEQ_2':'CEQ',
-        'Stripe 모재 L방향_YS2 STRESS':'YS2 STRESS', 'Stripe 모재 L방향_TS STRESS':'TS STRESS', 
-        'Stripe 모재 L방향_연신율 EL(%)':'연신율 EL(%)', 'Stripe 모재 L방향_YR(%)':'YR(%)',
-        'Stripe 모재 T방향_YS2 STRESS':'YS2 STRESS', 'Stripe 모재 T방향_TS STRESS':'TS STRESS', 
-        'Stripe 모재 T방향_연신율 EL(%)':'연신율 EL(%)', 'Stripe 모재 T방향_YR(%)':'YR(%)',
-        'Stripe 용접_YS2 STRESS':'YS2 STRESS', 'Stripe 용접_TS STRESS':'TS STRESS', 
-        'Stripe 용접_연신율 EL(%)':'연신율 EL(%)', 'Stripe 용접_YR(%)':'YR(%)',
-        'Base (Transeverse)_온도':'온도', 'Base (Transeverse)_1':'1', 'Base (Transeverse)_2':'2', 'Base (Transeverse)_3':'3', 'Base (Transeverse)_Avg':'Avg',
-        'Weld Line_온도':'온도', 'Weld Line_1':'1', 'Weld Line_2':'2', 'Weld Line_3':'3', 'Weld Line_Avg':'Avg',
-        'HAZ_온도':'온도', 'HAZ_1':'1', 'HAZ_2':'2', 'HAZ_3':'3', 'HAZ_Avg':'Avg'
-    }
+    # [신규] 엑셀 쓰기 함수 호출
+    wb = write_data_to_excel(wb, final_df_ordered)
 
-    # 데이터 쓰기
-    for index, row_data in final_df.iterrows():
-        current_row = start_row + index
-        # 템플릿의 컬럼 순서대로 값을 채워넣기
-        for col_idx, header in enumerate(template_headers, 1):
-            # 헤더에 맞는 데이터프레임 컬럼 찾기
-            # 복잡한 헤더 구조를 감안하여, 순차적으로 매핑된 컬럼을 찾아 값을 입력
-            df_col_name = None
-            # 이 부분은 템플릿의 복잡한 헤더를 정확히 파싱해야 하므로,
-            # 여기서는 순서 기반으로 단순화하여 값을 입력합니다.
-            # 보다 정확한 구현을 위해선 헤더 매핑 규칙이 더 명확해야 합니다.
-            # 지금은 생성된 final_df의 순서대로 값을 넣는다고 가정합니다.
-            if col_idx -1 < len(row_data):
-                 ws.cell(row=current_row, column=col_idx, value=row_data.iloc[col_idx-1])
-
-        # 서식 복사
-        for col_num in range(1, ws.max_column + 1):
-            template_cell = ws.cell(row=style_template_row, column=col_num)
-            new_cell = ws.cell(row=current_row, column=col_num)
-            
-            if template_cell.has_style:
-                new_cell.font = copy(template_cell.font)
-                new_cell.border = copy(template_cell.border)
-                new_cell.fill = copy(template_cell.fill)
-                new_cell.number_format = copy(template_cell.number_format)
-                new_cell.protection = copy(template_cell.protection)
-                new_cell.alignment = copy(template_cell.alignment)
+    if wb is None:
+        print("엑셀 파일 쓰기에 실패했습니다.")
+        return
 
     print(f"4/4: '{FILENAME_CONFIG['output']}' 파일 저장 중...")
     try:
@@ -310,6 +374,7 @@ st.set_page_config(page_title="시험 결과 통합 자동화 툴", layout="wide
 
 st.title("🔬 시험 결과 통합 자동화 툴")
 st.write("아래 4개의 엑셀 파일을 업로드한 후 버튼을 누르면, 규칙에 따라 데이터를 통합하고 서식을 유지한 최종 결과 파일을 다운로드할 수 있습니다.")
+st.write("**[v2.0]** '시편배치', '외경', '두께', 'Heat No.'를 기준으로 데이터를 통합합니다.")
 
 
 # --- UI 부분 ---
@@ -324,12 +389,11 @@ with col2:
 
 st.divider()
 
-# 모든 파일이 업로드 되었을 때만 버튼과 결과 섹션 표시
 if all([template_file, component_file, tensile_file, impact_file]):
     st.subheader("2. 결과 생성")
     if st.button("🚀 결과 생성 및 다운로드", type="primary", use_container_width=True):
         with st.spinner('데이터를 처리하고 엑셀 파일을 생성하는 중입니다... 잠시만 기다려주세요.'):
-            # 1. 파일 읽기
+            # 1. 파일 읽기 (UploadedFile 객체 전달)
             df_comp_raw = get_data(component_file)
             df_tens_raw = get_data(tensile_file)
             df_impa_raw = get_impact_data_with_multiheader(impact_file)
@@ -339,40 +403,35 @@ if all([template_file, component_file, tensile_file, impact_file]):
             processed_tens = process_tensile_data(df_tens_raw)
             processed_impa = process_impact_data(df_impa_raw)
             
+            # [수정] 처리 중 오류가 발생했는지 확인
+            if any(df.empty for df in [processed_comp, processed_tens, processed_impa] if df is not None):
+                st.error("데이터 처리 중 오류가 발생했습니다. 각 파일에 필요한 키 컬럼이 모두 있는지 확인해주세요.")
+                st.stop()
+
             # 3. 데이터 병합
             final_df = processed_comp.join(processed_tens, how='outer')
             final_df = final_df.join(processed_impa, how='outer')
+            
+            # [수정] 인덱스(복합 키)를 컬럼으로 변환
             final_df.reset_index(inplace=True)
-            final_df.rename(columns={'index': '시편배치'}, inplace=True)
+            # [삭제] 'index' 컬럼 이름 변경 로직
 
             # 4. 템플릿에 데이터 쓰기
             try:
                 wb = openpyxl.load_workbook(template_file)
-                ws = wb.active
             except Exception as e:
                 st.error(f"템플릿 파일을 여는 중 오류가 발생했습니다: {e}")
                 st.stop()
 
-            template_headers = [cell.value for cell in ws[3]] 
-            start_row = ws.max_row + 1
-            style_template_row = ws.max_row if ws.max_row >= 3 else 3
-            
-            for index, row_data in final_df.iterrows():
-                current_row = start_row + index
-                for col_idx, value in enumerate(row_data.values, 1):
-                    if pd.isna(value): value = None
-                    ws.cell(row=current_row, column=col_idx, value=value)
-                for col_num in range(1, len(template_headers) + 1):
-                    template_cell = ws.cell(row=style_template_row, column=col_num)
-                    if not template_cell: continue
-                    new_cell = ws.cell(row=current_row, column=col_num)
-                    if template_cell.has_style:
-                        new_cell.font = copy(template_cell.font)
-                        new_cell.border = copy(template_cell.border)
-                        new_cell.fill = copy(template_cell.fill)
-                        new_cell.number_format = copy(template_cell.number_format)
-                        new_cell.protection = copy(template_cell.protection)
-                        new_cell.alignment = copy(template_cell.alignment)
+            # [신규] DataFrame을 템플릿 순서로 재정렬
+            final_df_ordered = reorder_final_dataframe(final_df, TEMPLATE_ORDERED_COLS)
+
+            # [신규] 엑셀 쓰기 함수 호출
+            wb = write_data_to_excel(wb, final_df_ordered)
+
+            if wb is None:
+                st.error("엑셀 파일 쓰기에 실패했습니다.")
+                st.stop()
 
             # 5. 최종 엑셀 파일을 메모리에 저장
             output_buffer = io.BytesIO()
@@ -381,10 +440,11 @@ if all([template_file, component_file, tensile_file, impact_file]):
 
             st.session_state.download_ready = True
             st.session_state.output_buffer = output_buffer
+            st.session_state.error_occurred = False
 
-        st.success("✅ 처리가 완료되었습니다! 아래 버튼을 눌러 파일을 다운로드하세요.")
+        if not st.session_state.get('error_occurred', False):
+            st.success("✅ 처리가 완료되었습니다! 아래 버튼을 눌러 파일을 다운로드하세요.")
     
-    # 다운로드 버튼 표시 (파일 처리가 완료된 경우)
     if 'download_ready' in st.session_state and st.session_state.download_ready:
         st.download_button(
             label="📥 '통합_시험_결과_완성본.xlsx' 다운로드",
@@ -396,3 +456,12 @@ if all([template_file, component_file, tensile_file, impact_file]):
 
 else:
     st.info("💡 4개의 파일을 모두 업로드하면 결과 생성 버튼이 나타납니다.")
+
+# [신규] 로컬 실행을 위한 엔트리 포인트
+if __name__ == "__main__":
+    # Streamlit이 실행 중인지 확인
+    try:
+        st.runtime.get_instance()
+    except RuntimeError:
+        # Streamlit이 실행 중이 아니면 main() 함수 호출
+        main()
