@@ -93,18 +93,22 @@ def process_component_data(df):
     if df is None: return pd.DataFrame()
     
     # [수정] 복합 키로 사용할 컬럼 정의
-    key_cols = ['시편배치', '외경', '두께', 'Heat No.']
+    base_key_cols = ['시편배치', '외경', '두께', 'Heat No.']
     
     # [수정] 키 컬럼이 모두 존재하는지 확인
-    if not all(col in df.columns for col in key_cols):
-        st.error(f"성분 시험 파일에 필수 키 컬럼({key_cols}) 중 일부가 없습니다.")
+    if not all(col in df.columns for col in base_key_cols):
+        st.error(f"성분 시험 파일에 필수 키 컬럼({base_key_cols}) 중 일부가 없습니다.")
         return pd.DataFrame()
+
+    # [신규] '시편배치'의 앞 8자리를 키로 사용
+    df['시편배치_키'] = df['시편배치'].str[:8]
+    key_cols = ['시편배치_키', '외경', '두께', 'Heat No.']
 
     # 필요한 성분 컬럼 목록 (템플릿 기준)
     comp_cols = ['C', 'Si', 'Mn', 'P', 'S', 'Cu', 'Ni', 'Cr', 'Mo', 'V', 'Nb', 'Ti', 'Alsol', 'Aloxy', 'Al', 'Ca', 'B', 'PCM', 'CEQ']
     
-    # [수정] 기본 정보 컬럼 (키 컬럼 제외)
-    info_cols = ['생산오더', '제품배치', '제품기호', '원재료기호', '원재료업체']
+    # [수정] 기본 정보 컬럼 (키 컬럼 제외, 원본 '시편배치' 추가)
+    info_cols = ['생산오더', '제품배치', '제품기호', '원재료기호', '원재료업체', '시편배치']
     
     processed_data = {}
 
@@ -137,12 +141,16 @@ def process_tensile_data(df):
     if df is None: return pd.DataFrame()
 
     # [수정] 복합 키로 사용할 컬럼 정의
-    key_cols = ['시편배치', '외경', '두께', 'Heat No.']
+    base_key_cols = ['시편배치', '외경', '두께', 'Heat No.']
 
     # [수정] 키 컬럼이 모두 존재하는지 확인
-    if not all(col in df.columns for col in key_cols):
-        st.error(f"인장 시험 파일에 필수 키 컬럼({key_cols}) 중 일부가 없습니다.")
+    if not all(col in df.columns for col in base_key_cols):
+        st.error(f"인장 시험 파일에 필수 키 컬럼({base_key_cols}) 중 일부가 없습니다.")
         return pd.DataFrame()
+    
+    # [신규] '시편배치'의 앞 8자리를 키로 사용
+    df['시편배치_키'] = df['시편배치'].str[:8]
+    key_cols = ['시편배치_키', '외경', '두께', 'Heat No.']
     
     # 처리할 방향과 결과 컬럼 정의
     directions = ["Stripe 모재 L방향", "Stripe 모재 T방향", "Stripe 용접"]
@@ -195,11 +203,18 @@ def process_impact_data(df):
     notch_col = find_col(df, 'Notch 위치')
     
     # [수정] 복합 키 컬럼 리스트
-    key_cols = [specimen_col, od_col, thick_col, heat_col]
+    base_key_cols_found = [specimen_col, od_col, thick_col, heat_col]
     
-    if not all(key_cols + [notch_col]):
-        st.error(f"충격 시험 파일에서 필수 키/Notch 컬럼을 찾을 수 없습니다. (찾은 컬럼: {key_cols}, {notch_col})")
+    if not all(base_key_cols_found + [notch_col]):
+        st.error(f"충격 시험 파일에서 필수 키/Notch 컬럼을 찾을 수 없습니다. (찾은 컬럼: {base_key_cols_found}, {notch_col})")
         return pd.DataFrame()
+
+    # [신규] '시편배치'의 앞 8자리를 키로 사용
+    df['시편배치_키'] = df[specimen_col].str[:8]
+    key_cols = ['시편배치_키', od_col, thick_col, heat_col] # [수정] specimen_col 대신 '시편배치_키' 사용
+    # [수정] 인덱스 이름도 통일
+    key_col_names = ['시편배치_키', '외경', '두께', 'Heat No.']
+
 
     # 컬럼 접두사 정의
     temp_col_prefix = '온도(˚C)'
@@ -247,7 +262,7 @@ def process_impact_data(df):
     
     result_df = pd.DataFrame.from_dict(all_data, orient='index')
     # [수정] 인덱스 이름 설정
-    result_df.index.names = ['시편배치', '외경', '두께', 'Heat No.']
+    result_df.index.names = key_col_names
     return result_df
 
 
@@ -374,7 +389,7 @@ st.set_page_config(page_title="시험 결과 통합 자동화 툴", layout="wide
 
 st.title("🔬 시험 결과 통합 자동화 툴")
 st.write("아래 4개의 엑셀 파일을 업로드한 후 버튼을 누르면, 규칙에 따라 데이터를 통합하고 서식을 유지한 최종 결과 파일을 다운로드할 수 있습니다.")
-st.write("**[v2.0]** '시편배치', '외경', '두께', 'Heat No.'를 기준으로 데이터를 통합합니다.")
+st.write("**[v2.1]** '시편배치'(앞 8자리), '외경', '두께', 'Heat No.'를 기준으로 데이터를 통합합니다.")
 
 
 # --- UI 부분 ---
@@ -465,3 +480,4 @@ if __name__ == "__main__":
     except RuntimeError:
         # Streamlit이 실행 중이 아니면 main() 함수 호출
         main()
+
